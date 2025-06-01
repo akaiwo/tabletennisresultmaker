@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卓球試合結果画像メーカー</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .player-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .player-section > div {
+            flex: 1;
+        }
+        .sets-container {
+            border: 2px solid #eee;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            background: #fafafa;
+        }
+        .set-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .set-row label {
+            min-width: 80px;
+            margin-bottom: 0;
+            font-size: 14px;
+        }
+        .score-input {
+            flex: 1;
+            max-width: 120px;
+        }
+        .vs {
+            text-align: center;
+            font-weight: bold;
+            color: #e74c3c;
+            min-width: 20px;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .hidden {
+            display: none;
+        }
+
+        /* デスクトップ版（768px以上）では数値入力 */
+        @media (min-width: 768px) {
+            .score-select {
+                display: none;
+            }
+            .score-number {
+                display: block;
+            }
+        }
+
+        /* モバイル版（767px以下）ではプルダウン */
+        @media (max-width: 767px) {
+            .container {
+                padding: 20px;
+            }
+            .player-section {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .set-row {
+                gap: 8px;
+            }
+            .set-row label {
+                min-width: 70px;
+                font-size: 13px;
+            }
+            .score-select {
+                display: block;
+            }
+            .score-number {
+                display: none;
+            }
+            .score-input {
+                max-width: 80px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+            .set-row {
+                gap: 5px;
+            }
+            .set-row label {
+                min-width: 60px;
+                font-size: 12px;
+            }
+            .score-input {
+                max-width: 70px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏓 卓球試合結果画像メーカー</h1>
+        <form method="POST" action="/generate">
+            <div class="player-section">
+                <div>
+                    <label for="player1">プレイヤー1</label>
+                    <input type="text" id="player1" name="player1" required>
+                </div>
+                <div>
+                    <label for="player2">プレイヤー2</label>
+                    <input type="text" id="player2" name="player2" required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="match_type">マッチタイプ</label>
+                <select id="match_type" name="match_type" onchange="updateSets()">
+                    <option value="1セットマッチ">1セットマッチ</option>
+                    <option value="3セットマッチ">3セットマッチ</option>
+                    <option value="5セットマッチ">5セットマッチ</option>
+                    <option value="7セットマッチ">7セットマッチ</option>
+                </select>
+            </div>
+            
+            <div class="sets-container">
+                <h3>スコア入力</h3>
+                <div id="sets-inputs">
+                    <!-- JavaScript で動的に生成 -->
+                </div>
+            </div>
+            
+            <button type="submit">🎨 画像を生成</button>
+        </form>
+    </div>
+
+    <script>
+        // スコア選択のオプションを生成（0-50点）
+        function generateScoreOptions() {
+            let options = '<option value="">-</option>';
+            for (let i = 0; i <= 50; i++) {
+                options += `<option value="${i}">${i}</option>`;
+            }
+            return options;
+        }
+
+        function updateSets() {
+            const matchType = document.getElementById('match_type').value;
+            const maxSets = parseInt(matchType.replace('セットマッチ', ''));
+            const container = document.getElementById('sets-inputs');
+            
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= maxSets; i++) {
+                const setDiv = document.createElement('div');
+                setDiv.className = 'set-row';
+                setDiv.innerHTML = `
+                    <label>第${i}セット:</label>
+                    
+                    <!-- デスクトップ版：数値入力 -->
+                    <input type="number" 
+                           name="set${i}_score1" 
+                           min="0" 
+                           max="50" 
+                           placeholder="0" 
+                           class="score-input score-number">
+                    
+                    <!-- モバイル版：プルダウン -->
+                    <select name="set${i}_score1_mobile" 
+                            class="score-input score-select">
+                        ${generateScoreOptions()}
+                    </select>
+                    
+                    <span class="vs">-</span>
+                    
+                    <!-- デスクトップ版：数値入力 -->
+                    <input type="number" 
+                           name="set${i}_score2" 
+                           min="0" 
+                           max="50" 
+                           placeholder="0" 
+                           class="score-input score-number">
+                    
+                    <!-- モバイル版：プルダウン -->
+                    <select name="set${i}_score2_mobile" 
+                            class="score-input score-select">
+                        ${generateScoreOptions()}
+                    </select>
+                `;
+                container.appendChild(setDiv);
+            }
+            
+            // モバイル版のセレクトボックスの値変更時に対応する数値入力を同期
+            syncMobileInputs();
+        }
+        
+        function syncMobileInputs() {
+            // モバイル版のセレクトボックスが変更されたときに数値入力も同期
+            document.querySelectorAll('.score-select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const name = this.name;
+                    const correspondingInput = document.querySelector(`input[name="${name.replace('_mobile', '')}"]`);
+                    if (correspondingInput) {
+                        correspondingInput.value = this.value;
+                    }
+                });
+            });
+            
+            // デスクトップ版の数値入力が変更されたときにセレクトボックスも同期
+            document.querySelectorAll('.score-number').forEach(input => {
+                input.addEventListener('input', function() {
+                    const name = this.name;
+                    const correspondingSelect = document.querySelector(`select[name="${name}_mobile"]`);
+                    if (correspondingSelect && this.value >= 0 && this.value <= 50) {
+                        correspondingSelect.value = this.value;
+                    }
+                });
+            });
+        }
+        
+        // 初期化
+        updateSets();
+        
+        // フォーム送信前に値を統一
+        document.querySelector('form').addEventListener('submit', function(e) {
+            // モバイルの値をデスクトップの入力フィールドに反映
+            document.querySelectorAll('.score-select').forEach(select => {
+                if (select.value) {
+                    const name = select.name.replace('_mobile', '');
+                    const correspondingInput = document.querySelector(`input[name="${name}"]`);
+                    if (correspondingInput) {
+                        correspondingInput.value = select.value;
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
