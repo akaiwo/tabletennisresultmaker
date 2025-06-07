@@ -21,7 +21,7 @@ class TableTennisImageGenerator:
         self.setup_fonts()
         
     def download_font_if_needed(self, url, filename):
-        """必要に応じてフォントファイルをダウンロード"""
+        """必要に応じてフォントファイルをダウンロード（改良版）"""
         font_path = os.path.join('fonts', filename)
         
         # fontsディレクトリを作成
@@ -31,7 +31,7 @@ class TableTennisImageGenerator:
         if not os.path.exists(font_path):
             try:
                 print(f"Downloading font: {filename}")
-                response = requests.get(url, timeout=10, headers={
+                response = requests.get(url, timeout=30, headers={
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 })
                 response.raise_for_status()
@@ -40,6 +40,9 @@ class TableTennisImageGenerator:
                     f.write(response.content)
                 print(f"Font downloaded successfully: {filename}")
                 
+            except requests.exceptions.RequestException as e:
+                print(f"Network error downloading font {filename}: {e}")
+                return None
             except Exception as e:
                 print(f"Failed to download font {filename}: {e}")
                 return None
@@ -47,24 +50,24 @@ class TableTennisImageGenerator:
         return font_path if os.path.exists(font_path) else None
     
     def setup_fonts(self):
-        """フォントをセットアップ（簡略化版）"""
+        """フォントをセットアップ（改良版）"""
         self.font_paths = {}
         
-        # より確実なフォントURL（GitHub経由）
+        # より確実なフォントURL
         font_urls = {
-            'NotoSansJP-Regular.woff2': 'https://fonts.gstatic.com/s/notosansjp/v53/NotoSansJP-Regular.woff2',
             'DejaVuSans.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf',
             'DejaVuSans-Bold.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf'
         }
         
-        # フォントダウンロードを試行（失敗しても続行）
+        # フォントダウンロードを試行（より堅牢なエラーハンドリング）
         for filename, url in font_urls.items():
             try:
                 font_path = self.download_font_if_needed(url, filename)
-                if font_path:
+                if font_path and os.path.exists(font_path):
                     self.font_paths[filename] = font_path
+                    print(f"Font loaded successfully: {filename}")
             except Exception as e:
-                print(f"Error setting up font {filename}: {e}")
+                print(f"Warning: Could not load font {filename}: {e}")
                 continue
     
     def get_font(self, size, bold=False, italic=False):
@@ -72,9 +75,13 @@ class TableTennisImageGenerator:
         # まずダウンロードしたフォントを試す
         try:
             if bold and 'DejaVuSans-Bold.ttf' in self.font_paths:
-                return ImageFont.truetype(self.font_paths['DejaVuSans-Bold.ttf'], size)
+                font_path = self.font_paths['DejaVuSans-Bold.ttf']
+                if os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, size)
             elif 'DejaVuSans.ttf' in self.font_paths:
-                return ImageFont.truetype(self.font_paths['DejaVuSans.ttf'], size)
+                font_path = self.font_paths['DejaVuSans.ttf']
+                if os.path.exists(font_path):
+                    return ImageFont.truetype(font_path, size)
         except Exception as e:
             print(f"Error loading downloaded font: {e}")
         
@@ -135,12 +142,6 @@ class TableTennisImageGenerator:
         try:
             # デフォルトフォントでもサイズを調整
             default_font = ImageFont.load_default()
-            # 代替として小さなサイズでもTrueTypeフォントを試す
-            for simple_font in ['arial.ttf', 'DejaVuSans.ttf']:
-                try:
-                    return ImageFont.truetype(simple_font, max(10, min(size, 40)))
-                except:
-                    continue
             return default_font
         except:
             # 最終手段
@@ -409,5 +410,7 @@ def generate_image():
         print(f"Error in generate_image: {e}")
         return f"エラーが発生しました: {str(e)}", 500
 
+# Render用のポート設定
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
