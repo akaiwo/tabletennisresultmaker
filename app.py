@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import os
 import platform
+import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -16,130 +17,178 @@ class TableTennisImageGenerator:
         self.secondary_color = (52, 73, 94)
         self.accent_color = (231, 76, 60)
         
-        # 事前配置されたフォントファイルを準備
-        self.setup_fonts()
+        # フォントキャッシュディレクトリを設定
+        self.font_cache_dir = os.path.join(os.path.dirname(__file__), 'font_cache')
+        os.makedirs(self.font_cache_dir, exist_ok=True)
+        
+        # フォントを初期化
+        self.setup_font()
     
-    def setup_fonts(self):
-        """事前配置されたフォントをセットアップ"""
+    def get_google_fonts_url(self, font_family, weight='400'):
+        """Google Fonts APIを使用してフォントURLを取得"""
+        try:
+            api_url = f"https://fonts.googleapis.com/css2?family={font_family}:wght@{weight}&display=swap"
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            
+            # CSSからフォントURLを抽出
+            css_content = response.text
+            import re
+            url_match = re.search(r'url\((https://[^)]+\.ttf)\)', css_content)
+            if url_match:
+                return url_match.group(1)
+        except Exception as e:
+            print(f"Failed to get Google Fonts URL: {e}")
+        return None
+
+    def download_font(self, font_url, font_filename):
+        """フォントをダウンロード"""
+        font_path = os.path.join(self.font_cache_dir, font_filename)
+        
+        # 既にダウンロード済みの場合はそのまま使用
+        if os.path.exists(font_path):
+            return font_path
+        
+        try:
+            print(f"Downloading font: {font_filename}")
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(font_url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            with open(font_path, 'wb') as f:
+                f.write(response.content)
+            
+            print(f"Font downloaded successfully: {font_filename}")
+            return font_path
+        except Exception as e:
+            print(f"Failed to download font {font_filename}: {e}")
+            return None
+    
+    def setup_font(self):
+        """汎用的なフォントをセットアップ"""
         self.font_paths = {}
         
-        # 事前に配置されたフォントファイルのリスト（優先度順）
-        font_candidates = [
-            # 日本語対応フォント（Noto Sans JP）
-            ('NotoSansJP-Regular.ttf', 'regular'),
-            ('NotoSansJP-Bold.ttf', 'bold'),
-            ('NotoSansJP-Medium.ttf', 'medium'),
-            ('NotoSansJP-SemiBold.ttf', 'semibold'),
-            ('NotoSansJP-Light.ttf', 'light'),
-            ('NotoSansJP-ExtraBold.ttf', 'extrabold'),
-            ('NotoSansJP-Black.ttf', 'black'),
-            ('NotoSansJP-Thin.ttf', 'thin'),
-            ('NotoSansJP-ExtraLight.ttf', 'extralight'),
-            # バックアップ用（英語フォント）
-            ('DejaVuSans.ttf', 'fallback_regular'),
-            ('DejaVuSans-Bold.ttf', 'fallback_bold'),
+        # Google Fonts API経由でNoto Sans JPのURLを取得してダウンロード
+        noto_urls = {
+            'regular': self.get_google_fonts_url('Noto+Sans+JP', '400'),
+            'bold': self.get_google_fonts_url('Noto+Sans+JP', '700')
+        }
+        
+        for weight, url in noto_urls.items():
+            if url:
+                font_path = self.download_font(url, f'NotoSansJP-{weight.title()}.ttf')
+                if font_path:
+                    self.font_paths[weight] = font_path
+        
+        # 複数のフォールバックソースを用意
+        fallback_sources = [
+            # GitHub経由のDejaVu Sans
+            {
+                'regular': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf',
+                'bold': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf'
+            },
+            # jsDelivr経由の別のフォント
+            {
+                'regular': 'https://cdn.jsdelivr.net/gh/googlefonts/roboto@main/src/hinted/Roboto-Regular.ttf',
+                'bold': 'https://cdn.jsdelivr.net/gh/googlefonts/roboto@main/src/hinted/Roboto-Bold.ttf'
+            }
         ]
         
-        # fontsディレクトリ内のフォントファイルを検索
-        fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
-        if os.path.exists(fonts_dir):
-            for filename, font_type in font_candidates:
-                font_path = os.path.join(fonts_dir, filename)
-                if os.path.exists(font_path):
-                    try:
-                        # フォントが正常に読み込めるかテスト
-                        test_font = ImageFont.truetype(font_path, 20)
-                        self.font_paths[font_type] = font_path
-                        print(f"Font loaded successfully: {filename} as {font_type}")
-                    except Exception as e:
-                        print(f"Warning: Could not load font {filename}: {e}")
-                        continue
-        
-        # 利用可能なフォントを確認
-        if self.font_paths:
-            print(f"Available fonts: {list(self.font_paths.keys())}")
-        else:
-            print("Warning: No custom fonts loaded, will use system defaults")
+        # フォールバックフォントをダウンロード
+        for i, source in enumerate(fallback_sources):
+            for weight, url in source.items():
+                font_path = self.download_font(url, f'Fallback{i+1}-{weight.title()}.ttf')
+                if font_path:
+                    self.font_paths[f'fallback{i+1}_{weight}'] = font_path
+                    if f'fallback_{weight}' not in self.font_paths:
+                        self.font_paths[f'fallback_{weight}'] = font_path
     
-    def get_font(self, size, bold=False, weight='regular'):
-        """フォントを取得（事前配置フォント対応版）"""
-        # 重み指定を正規化
-        if bold:
-            weight = 'bold'
+    def get_font(self, size, bold=False):
+        """フォントを取得（太字対応）"""
+        weight = 'bold' if bold else 'regular'
         
-        # 優先度順でフォントを選択
-        font_priority = []
+        # 複数のフォントソースを順番に試す
+        font_candidates = [
+            # 1. Noto Sans JP（最優先）
+            weight,
+            # 2. フォールバックフォント
+            f'fallback_{weight}',
+            f'fallback1_{weight}',
+            f'fallback2_{weight}',
+        ]
         
-        if weight == 'bold':
-            font_priority = ['bold', 'semibold', 'extrabold', 'black', 'medium', 'regular']
-        elif weight == 'medium':
-            font_priority = ['medium', 'semibold', 'regular', 'bold']
-        elif weight == 'light':
-            font_priority = ['light', 'extralight', 'thin', 'regular']
-        else:  # regular
-            font_priority = ['regular', 'medium', 'light', 'bold']
-        
-        # 事前配置されたフォントを優先度順に試す
-        for font_type in font_priority:
-            if font_type in self.font_paths:
+        for candidate in font_candidates:
+            if candidate in self.font_paths:
                 try:
-                    font_path = self.font_paths[font_type]
+                    font_path = self.font_paths[candidate]
                     if os.path.exists(font_path):
-                        return ImageFont.truetype(font_path, size)
+                        font = ImageFont.truetype(font_path, size)
+                        # フォントが正しく読み込めるかテスト
+                        font.getbbox("Test")
+                        return font
                 except Exception as e:
-                    print(f"Error loading font {font_type}: {e}")
+                    print(f"Error loading font {candidate}: {e}")
                     continue
         
-        # フォールバック用フォントを試す
-        fallback_priority = ['fallback_regular', 'fallback_bold'] if not bold else ['fallback_bold', 'fallback_regular']
-        for font_type in fallback_priority:
-            if font_type in self.font_paths:
-                try:
-                    font_path = self.font_paths[font_type]
-                    if os.path.exists(font_path):
-                        return ImageFont.truetype(font_path, size)
-                except Exception as e:
-                    print(f"Error loading fallback font {font_type}: {e}")
-                    continue
+        # システムフォントを試す
+        system_font = self.get_system_font(size, bold)
+        if system_font:
+            return system_font
         
-        # システムフォントをバックアップとして使用
+        # 最終手段：デフォルトフォント
+        print(f"Warning: Using default font for size {size}")
+        try:
+            return ImageFont.load_default()
+        except:
+            return ImageFont.load_default()
+    
+    def get_system_font(self, size, bold=False):
+        """システムフォントを取得"""
         system = platform.system()
         system_font_paths = []
         
         if system == "Windows":
             if bold:
                 system_font_paths = [
+                    "C:/Windows/Fonts/msgothic.ttc",  # MS Gothic (日本語対応)
                     "C:/Windows/Fonts/arialbd.ttf",
                     "C:/Windows/Fonts/calibrib.ttf",
-                    "C:/Windows/Fonts/tahomabd.ttf",
                 ]
             else:
                 system_font_paths = [
+                    "C:/Windows/Fonts/msgothic.ttc",  # MS Gothic (日本語対応)
                     "C:/Windows/Fonts/arial.ttf",
                     "C:/Windows/Fonts/calibri.ttf",
-                    "C:/Windows/Fonts/tahoma.ttf",
                 ]
         elif system == "Darwin":  # macOS
             if bold:
                 system_font_paths = [
+                    "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 日本語対応
                     "/System/Library/Fonts/Arial Bold.ttf",
                     "/System/Library/Fonts/Helvetica.ttc",
                 ]
             else:
                 system_font_paths = [
+                    "/System/Library/Fonts/Hiragino Sans GB.ttc",  # 日本語対応
                     "/System/Library/Fonts/Arial.ttf",
                     "/System/Library/Fonts/Helvetica.ttc",
                 ]
-        else:  # Linux
+        else:  # Linux (Render環境も含む)
             if bold:
                 system_font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                    "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
                 ]
             else:
                 system_font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
                 ]
         
         # システムフォントを試す
@@ -150,26 +199,18 @@ class TableTennisImageGenerator:
             except Exception:
                 continue
         
-        # 最終手段：デフォルトフォント
-        print(f"Warning: Using default font for size {size}. Custom fonts may not be available.")
-        try:
-            return ImageFont.load_default()
-        except:
-            return ImageFont.load_default()
+        return None
     
     def draw_text_with_fallback(self, draw, text, position, font, fill):
         """フォールバック付きテキスト描画"""
         try:
-            # まず指定されたフォントで描画を試す
             draw.text(position, text, fill=fill, font=font)
         except Exception as e:
-            # 失敗した場合はデフォルトフォントで描画
             print(f"Font rendering failed, using fallback: {e}")
             try:
                 default_font = ImageFont.load_default()
                 draw.text(position, text, fill=fill, font=default_font)
             except Exception as e2:
-                # 最終手段: フォントなしで描画
                 print(f"Default font also failed: {e2}")
                 draw.text(position, text, fill=fill)
     
@@ -178,15 +219,15 @@ class TableTennisImageGenerator:
         img = Image.new('RGB', (self.width, self.height), self.bg_color)
         draw = ImageDraw.Draw(img)
         
+        # フォントを設定（太字対応）
         try:
-            # フォントを設定（日本語対応）
             title_font = self.get_font(80, bold=True)
-            name_font = self.get_font(45, weight='medium')
+            name_font = self.get_font(45, bold=True)
             score_font = self.get_font(120, bold=True)
-            detail_font = self.get_font(35, weight='regular')
+            detail_font = self.get_font(35, bold=False)
             win_font = self.get_font(60, bold=True)
-            vs_font = self.get_font(50, bold=True)
-            footer_font = self.get_font(30, weight='regular')
+            vs_font = self.get_font(50, bold=False)
+            footer_font = self.get_font(30, bold=False)
         except Exception as e:
             print(f"Error setting up fonts: {e}")
             # フォント作成に失敗した場合のフォールバック
@@ -194,7 +235,7 @@ class TableTennisImageGenerator:
             title_font = name_font = score_font = detail_font = win_font = vs_font = footer_font = default_font
         
         # タイトル（英語）
-        title_text = "Table Tennis Result"
+        title_text = "Game Result"
         try:
             title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
             title_width = title_bbox[2] - title_bbox[0]
@@ -368,8 +409,40 @@ class TableTennisImageGenerator:
         
         return img
 
-# グローバルインスタンス
-generator = TableTennisImageGenerator()
+# グローバルインスタンス（エラーハンドリング付き）
+try:
+    generator = TableTennisImageGenerator()
+    print("Font system initialized successfully")
+except Exception as e:
+    print(f"Warning: Font system initialization failed: {e}")
+    # フォールバック用の簡易ジェネレータを作成
+    class FallbackGenerator:
+        def create_image(self, player1, player2, scores, match_type):
+            # 基本的な画像生成（システムフォントのみ使用）
+            img = Image.new('RGB', (1080, 1080), (255, 255, 255))
+            draw = ImageDraw.Draw(img)
+            
+            try:
+                font = ImageFont.load_default()
+            except:
+                font = None
+            
+            # 基本的なテキスト描画
+            draw.text((540, 200), "Game Result", fill=(0, 0, 0), font=font, anchor="mm")
+            draw.text((270, 400), player1, fill=(0, 0, 0), font=font, anchor="mm")
+            draw.text((810, 400), player2, fill=(0, 0, 0), font=font, anchor="mm")
+            draw.text((540, 400), "vs", fill=(255, 0, 0), font=font, anchor="mm")
+            
+            # 簡易スコア表示
+            player1_wins = sum(1 for score in scores if score[0] > score[1])
+            player2_wins = sum(1 for score in scores if score[1] > score[0])
+            
+            draw.text((270, 600), str(player1_wins), fill=(0, 0, 0), font=font, anchor="mm")
+            draw.text((810, 600), str(player2_wins), fill=(0, 0, 0), font=font, anchor="mm")
+            
+            return img
+    
+    generator = FallbackGenerator()
 
 @app.route('/')
 def index():
@@ -410,7 +483,7 @@ def generate_image():
         img_io.seek(0)
         
         # ファイル名を英数字のみに変更（日本語文字が問題を起こす可能性を回避）
-        safe_filename = f'table_tennis_result_{len(player1)}vs{len(player2)}.png'
+        safe_filename = f'GameResult_{player1}_vs_{player2}.png'
         
         return send_file(img_io, mimetype='image/png', 
                         as_attachment=True, 
