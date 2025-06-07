@@ -3,7 +3,6 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import os
 import platform
-import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -17,134 +16,145 @@ class TableTennisImageGenerator:
         self.secondary_color = (52, 73, 94)
         self.accent_color = (231, 76, 60)
         
-        # フォントファイルをダウンロードして準備
+        # 事前配置されたフォントファイルを準備
         self.setup_fonts()
-        
-    def download_font_if_needed(self, url, filename):
-        """必要に応じてフォントファイルをダウンロード（改良版）"""
-        font_path = os.path.join('fonts', filename)
-        
-        # fontsディレクトリを作成
-        os.makedirs('fonts', exist_ok=True)
-        
-        # ファイルが存在しない場合のみダウンロード
-        if not os.path.exists(font_path):
-            try:
-                print(f"Downloading font: {filename}")
-                response = requests.get(url, timeout=30, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                })
-                response.raise_for_status()
-                
-                with open(font_path, 'wb') as f:
-                    f.write(response.content)
-                print(f"Font downloaded successfully: {filename}")
-                
-            except requests.exceptions.RequestException as e:
-                print(f"Network error downloading font {filename}: {e}")
-                return None
-            except Exception as e:
-                print(f"Failed to download font {filename}: {e}")
-                return None
-                
-        return font_path if os.path.exists(font_path) else None
     
     def setup_fonts(self):
-        """フォントをセットアップ（改良版）"""
+        """事前配置されたフォントをセットアップ"""
         self.font_paths = {}
         
-        # より確実なフォントURL
-        font_urls = {
-            'DejaVuSans.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf',
-            'DejaVuSans-Bold.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf'
-        }
+        # 事前に配置されたフォントファイルのリスト（優先度順）
+        font_candidates = [
+            # 日本語対応フォント（Noto Sans JP）
+            ('NotoSansJP-Regular.ttf', 'regular'),
+            ('NotoSansJP-Bold.ttf', 'bold'),
+            ('NotoSansJP-Medium.ttf', 'medium'),
+            ('NotoSansJP-SemiBold.ttf', 'semibold'),
+            ('NotoSansJP-Light.ttf', 'light'),
+            ('NotoSansJP-ExtraBold.ttf', 'extrabold'),
+            ('NotoSansJP-Black.ttf', 'black'),
+            ('NotoSansJP-Thin.ttf', 'thin'),
+            ('NotoSansJP-ExtraLight.ttf', 'extralight'),
+            # バックアップ用（英語フォント）
+            ('DejaVuSans.ttf', 'fallback_regular'),
+            ('DejaVuSans-Bold.ttf', 'fallback_bold'),
+        ]
         
-        # フォントダウンロードを試行（より堅牢なエラーハンドリング）
-        for filename, url in font_urls.items():
-            try:
-                font_path = self.download_font_if_needed(url, filename)
-                if font_path and os.path.exists(font_path):
-                    self.font_paths[filename] = font_path
-                    print(f"Font loaded successfully: {filename}")
-            except Exception as e:
-                print(f"Warning: Could not load font {filename}: {e}")
-                continue
+        # fontsディレクトリ内のフォントファイルを検索
+        fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+        if os.path.exists(fonts_dir):
+            for filename, font_type in font_candidates:
+                font_path = os.path.join(fonts_dir, filename)
+                if os.path.exists(font_path):
+                    try:
+                        # フォントが正常に読み込めるかテスト
+                        test_font = ImageFont.truetype(font_path, 20)
+                        self.font_paths[font_type] = font_path
+                        print(f"Font loaded successfully: {filename} as {font_type}")
+                    except Exception as e:
+                        print(f"Warning: Could not load font {filename}: {e}")
+                        continue
+        
+        # 利用可能なフォントを確認
+        if self.font_paths:
+            print(f"Available fonts: {list(self.font_paths.keys())}")
+        else:
+            print("Warning: No custom fonts loaded, will use system defaults")
     
-    def get_font(self, size, bold=False, italic=False):
-        """フォントを取得（改良版）"""
-        # まずダウンロードしたフォントを試す
-        try:
-            if bold and 'DejaVuSans-Bold.ttf' in self.font_paths:
-                font_path = self.font_paths['DejaVuSans-Bold.ttf']
-                if os.path.exists(font_path):
-                    return ImageFont.truetype(font_path, size)
-            elif 'DejaVuSans.ttf' in self.font_paths:
-                font_path = self.font_paths['DejaVuSans.ttf']
-                if os.path.exists(font_path):
-                    return ImageFont.truetype(font_path, size)
-        except Exception as e:
-            print(f"Error loading downloaded font: {e}")
+    def get_font(self, size, bold=False, weight='regular'):
+        """フォントを取得（事前配置フォント対応版）"""
+        # 重み指定を正規化
+        if bold:
+            weight = 'bold'
         
-        # システムフォントを試す
+        # 優先度順でフォントを選択
+        font_priority = []
+        
+        if weight == 'bold':
+            font_priority = ['bold', 'semibold', 'extrabold', 'black', 'medium', 'regular']
+        elif weight == 'medium':
+            font_priority = ['medium', 'semibold', 'regular', 'bold']
+        elif weight == 'light':
+            font_priority = ['light', 'extralight', 'thin', 'regular']
+        else:  # regular
+            font_priority = ['regular', 'medium', 'light', 'bold']
+        
+        # 事前配置されたフォントを優先度順に試す
+        for font_type in font_priority:
+            if font_type in self.font_paths:
+                try:
+                    font_path = self.font_paths[font_type]
+                    if os.path.exists(font_path):
+                        return ImageFont.truetype(font_path, size)
+                except Exception as e:
+                    print(f"Error loading font {font_type}: {e}")
+                    continue
+        
+        # フォールバック用フォントを試す
+        fallback_priority = ['fallback_regular', 'fallback_bold'] if not bold else ['fallback_bold', 'fallback_regular']
+        for font_type in fallback_priority:
+            if font_type in self.font_paths:
+                try:
+                    font_path = self.font_paths[font_type]
+                    if os.path.exists(font_path):
+                        return ImageFont.truetype(font_path, size)
+                except Exception as e:
+                    print(f"Error loading fallback font {font_type}: {e}")
+                    continue
+        
+        # システムフォントをバックアップとして使用
         system = platform.system()
-        font_paths = []
+        system_font_paths = []
         
         if system == "Windows":
             if bold:
-                font_paths = [
+                system_font_paths = [
                     "C:/Windows/Fonts/arialbd.ttf",
                     "C:/Windows/Fonts/calibrib.ttf",
                     "C:/Windows/Fonts/tahomabd.ttf",
                 ]
             else:
-                font_paths = [
+                system_font_paths = [
                     "C:/Windows/Fonts/arial.ttf",
                     "C:/Windows/Fonts/calibri.ttf",
                     "C:/Windows/Fonts/tahoma.ttf",
                 ]
         elif system == "Darwin":  # macOS
             if bold:
-                font_paths = [
+                system_font_paths = [
                     "/System/Library/Fonts/Arial Bold.ttf",
                     "/System/Library/Fonts/Helvetica.ttc",
                 ]
             else:
-                font_paths = [
+                system_font_paths = [
                     "/System/Library/Fonts/Arial.ttf",
                     "/System/Library/Fonts/Helvetica.ttc",
                 ]
-        else:  # Linux (クラウド環境)
+        else:  # Linux
             if bold:
-                font_paths = [
+                system_font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-                    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-                    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
                 ]
             else:
-                font_paths = [
+                system_font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-                    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-                    "/usr/share/fonts/TTF/DejaVuSans.ttf",
                 ]
         
-        # システムフォントを順番に試す
-        for font_path in font_paths:
+        # システムフォントを試す
+        for font_path in system_font_paths:
             try:
                 if os.path.exists(font_path):
                     return ImageFont.truetype(font_path, size)
             except Exception:
                 continue
         
-        # すべて失敗した場合はデフォルトフォント
-        print(f"Warning: Using default font for size {size}. Text may not display optimally.")
+        # 最終手段：デフォルトフォント
+        print(f"Warning: Using default font for size {size}. Custom fonts may not be available.")
         try:
-            # デフォルトフォントでもサイズを調整
-            default_font = ImageFont.load_default()
-            return default_font
+            return ImageFont.load_default()
         except:
-            # 最終手段
             return ImageFont.load_default()
     
     def draw_text_with_fallback(self, draw, text, position, font, fill):
@@ -169,22 +179,22 @@ class TableTennisImageGenerator:
         draw = ImageDraw.Draw(img)
         
         try:
-            # フォントを設定（エラーハンドリング付き）
+            # フォントを設定（日本語対応）
             title_font = self.get_font(80, bold=True)
-            name_font = self.get_font(45)
+            name_font = self.get_font(45, weight='medium')
             score_font = self.get_font(120, bold=True)
-            detail_font = self.get_font(35)
+            detail_font = self.get_font(35, weight='regular')
             win_font = self.get_font(60, bold=True)
             vs_font = self.get_font(50, bold=True)
-            footer_font = self.get_font(30)
+            footer_font = self.get_font(30, weight='regular')
         except Exception as e:
             print(f"Error setting up fonts: {e}")
             # フォント作成に失敗した場合のフォールバック
             default_font = ImageFont.load_default()
             title_font = name_font = score_font = detail_font = win_font = vs_font = footer_font = default_font
         
-        # タイトル
-        title_text = "Game Result"
+        # タイトル（英語）
+        title_text = "Table Tennis Result"
         try:
             title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
             title_width = title_bbox[2] - title_bbox[0]
