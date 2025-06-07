@@ -31,12 +31,14 @@ class TableTennisImageGenerator:
         if not os.path.exists(font_path):
             try:
                 print(f"Downloading font: {filename}")
-                response = requests.get(url, timeout=30)
+                response = requests.get(url, timeout=10, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
                 response.raise_for_status()
                 
                 with open(font_path, 'wb') as f:
                     f.write(response.content)
-                print(f"Font downloaded: {filename}")
+                print(f"Font downloaded successfully: {filename}")
                 
             except Exception as e:
                 print(f"Failed to download font {filename}: {e}")
@@ -45,52 +47,38 @@ class TableTennisImageGenerator:
         return font_path if os.path.exists(font_path) else None
     
     def setup_fonts(self):
-        """フォントをセットアップ"""
-        # Google Fontsから日本語対応フォントをダウンロード
-        font_urls = {
-            'NotoSansJP-Regular.ttf': 'https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf',
-            'NotoSansJP-Bold.ttf': 'https://fonts.gstatic.com/s/notosansjp/v52/NotoSansJP-Bold.ttf',
-        }
-        
+        """フォントをセットアップ（簡略化版）"""
         self.font_paths = {}
         
-        # 各フォントをダウンロード
+        # より確実なフォントURL（GitHub経由）
+        font_urls = {
+            'NotoSansJP-Regular.woff2': 'https://fonts.gstatic.com/s/notosansjp/v53/NotoSansJP-Regular.woff2',
+            'DejaVuSans.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf',
+            'DejaVuSans-Bold.ttf': 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf'
+        }
+        
+        # フォントダウンロードを試行（失敗しても続行）
         for filename, url in font_urls.items():
             try:
-                # まず簡単なURL（直接ダウンロード可能）を試す
-                if 'gstatic' in url:
-                    font_path = self.download_font_if_needed(url, filename)
-                    if font_path:
-                        self.font_paths[filename] = font_path
-                        continue
-                
-                # Google Fonts APIを使用してダウンロード
-                # より確実な方法として、代替のCDNを使用
-                alt_urls = {
-                    'NotoSansJP-Regular.ttf': 'https://fonts.gstatic.com/s/notosansjp/v52/NotoSansJP-Regular.ttf',
-                    'NotoSansJP-Bold.ttf': 'https://fonts.gstatic.com/s/notosansjp/v52/NotoSansJP-Bold.ttf',
-                }
-                
-                if filename in alt_urls:
-                    font_path = self.download_font_if_needed(alt_urls[filename], filename)
-                    if font_path:
-                        self.font_paths[filename] = font_path
-                        
+                font_path = self.download_font_if_needed(url, filename)
+                if font_path:
+                    self.font_paths[filename] = font_path
             except Exception as e:
                 print(f"Error setting up font {filename}: {e}")
+                continue
     
     def get_font(self, size, bold=False, italic=False):
-        """フォントを取得（クラウド環境対応版）"""
+        """フォントを取得（改良版）"""
         # まずダウンロードしたフォントを試す
         try:
-            if bold and 'NotoSansJP-Bold.ttf' in self.font_paths:
-                return ImageFont.truetype(self.font_paths['NotoSansJP-Bold.ttf'], size)
-            elif 'NotoSansJP-Regular.ttf' in self.font_paths:
-                return ImageFont.truetype(self.font_paths['NotoSansJP-Regular.ttf'], size)
+            if bold and 'DejaVuSans-Bold.ttf' in self.font_paths:
+                return ImageFont.truetype(self.font_paths['DejaVuSans-Bold.ttf'], size)
+            elif 'DejaVuSans.ttf' in self.font_paths:
+                return ImageFont.truetype(self.font_paths['DejaVuSans.ttf'], size)
         except Exception as e:
             print(f"Error loading downloaded font: {e}")
         
-        # システムフォントを試す（ローカル環境用）
+        # システムフォントを試す
         system = platform.system()
         font_paths = []
         
@@ -98,36 +86,40 @@ class TableTennisImageGenerator:
             if bold:
                 font_paths = [
                     "C:/Windows/Fonts/arialbd.ttf",
-                    "C:/Windows/Fonts/NotoSansCJK-Bold.ttc",
-                    "C:/Windows/Fonts/meiryob.ttc",
+                    "C:/Windows/Fonts/calibrib.ttf",
+                    "C:/Windows/Fonts/tahomabd.ttf",
                 ]
             else:
                 font_paths = [
                     "C:/Windows/Fonts/arial.ttf",
-                    "C:/Windows/Fonts/NotoSansCJK-Regular.ttc",
-                    "C:/Windows/Fonts/meiryo.ttc",
+                    "C:/Windows/Fonts/calibri.ttf",
+                    "C:/Windows/Fonts/tahoma.ttf",
                 ]
         elif system == "Darwin":  # macOS
             if bold:
                 font_paths = [
                     "/System/Library/Fonts/Arial Bold.ttf",
-                    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                    "/System/Library/Fonts/Helvetica.ttc",
                 ]
             else:
                 font_paths = [
                     "/System/Library/Fonts/Arial.ttf",
-                    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+                    "/System/Library/Fonts/Helvetica.ttc",
                 ]
         else:  # Linux (クラウド環境)
             if bold:
                 font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+                    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
                 ]
             else:
                 font_paths = [
                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/TTF/DejaVuSans.ttf",
                 ]
         
         # システムフォントを順番に試す
@@ -135,15 +127,23 @@ class TableTennisImageGenerator:
             try:
                 if os.path.exists(font_path):
                     return ImageFont.truetype(font_path, size)
-            except Exception as e:
+            except Exception:
                 continue
         
         # すべて失敗した場合はデフォルトフォント
-        print("Warning: Using default font. Text may not display correctly.")
+        print(f"Warning: Using default font for size {size}. Text may not display optimally.")
         try:
-            return ImageFont.load_default()
+            # デフォルトフォントでもサイズを調整
+            default_font = ImageFont.load_default()
+            # 代替として小さなサイズでもTrueTypeフォントを試す
+            for simple_font in ['arial.ttf', 'DejaVuSans.ttf']:
+                try:
+                    return ImageFont.truetype(simple_font, max(10, min(size, 40)))
+                except:
+                    continue
+            return default_font
         except:
-            # 最終手段として小さなデフォルトフォントを作成
+            # 最終手段
             return ImageFont.load_default()
     
     def draw_text_with_fallback(self, draw, text, position, font, fill):
@@ -154,27 +154,42 @@ class TableTennisImageGenerator:
         except Exception as e:
             # 失敗した場合はデフォルトフォントで描画
             print(f"Font rendering failed, using fallback: {e}")
-            default_font = ImageFont.load_default()
-            draw.text(position, text, fill=fill, font=default_font)
+            try:
+                default_font = ImageFont.load_default()
+                draw.text(position, text, fill=fill, font=default_font)
+            except Exception as e2:
+                # 最終手段: フォントなしで描画
+                print(f"Default font also failed: {e2}")
+                draw.text(position, text, fill=fill)
     
     def create_image(self, player1, player2, scores, match_type):
         # 画像とDrawオブジェクトを作成
         img = Image.new('RGB', (self.width, self.height), self.bg_color)
         draw = ImageDraw.Draw(img)
         
-        # フォントを設定
-        title_font = self.get_font(80, bold=True)
-        name_font = self.get_font(45)
-        score_font = self.get_font(120, bold=True)
-        detail_font = self.get_font(35)
-        win_font = self.get_font(60, bold=True)
-        vs_font = self.get_font(50, bold=True)
-        footer_font = self.get_font(30)
+        try:
+            # フォントを設定（エラーハンドリング付き）
+            title_font = self.get_font(80, bold=True)
+            name_font = self.get_font(45)
+            score_font = self.get_font(120, bold=True)
+            detail_font = self.get_font(35)
+            win_font = self.get_font(60, bold=True)
+            vs_font = self.get_font(50, bold=True)
+            footer_font = self.get_font(30)
+        except Exception as e:
+            print(f"Error setting up fonts: {e}")
+            # フォント作成に失敗した場合のフォールバック
+            default_font = ImageFont.load_default()
+            title_font = name_font = score_font = detail_font = win_font = vs_font = footer_font = default_font
         
         # タイトル
         title_text = "Game Result"
-        title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
-        title_width = title_bbox[2] - title_bbox[0]
+        try:
+            title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
+            title_width = title_bbox[2] - title_bbox[0]
+        except:
+            title_width = len(title_text) * 30  # フォールバック計算
+        
         self.draw_text_with_fallback(draw, title_text, 
                                    ((self.width - title_width) // 2, 80), 
                                    title_font, self.primary_color)
@@ -192,8 +207,11 @@ class TableTennisImageGenerator:
         
         # WIN表示
         win_text = "WIN"
-        win_bbox = draw.textbbox((0, 0), win_text, font=win_font)
-        win_width = win_bbox[2] - win_bbox[0]
+        try:
+            win_bbox = draw.textbbox((0, 0), win_text, font=win_font)
+            win_width = win_bbox[2] - win_bbox[0]
+        except:
+            win_width = len(win_text) * 25
         
         if winner == player1:
             self.draw_text_with_fallback(draw, win_text, 
@@ -208,23 +226,35 @@ class TableTennisImageGenerator:
         player_y = 300
         
         # プレイヤー1（左側）
-        player1_bbox = draw.textbbox((0, 0), player1, font=name_font)
-        player1_width = player1_bbox[2] - player1_bbox[0]
+        try:
+            player1_bbox = draw.textbbox((0, 0), player1, font=name_font)
+            player1_width = player1_bbox[2] - player1_bbox[0]
+        except:
+            player1_width = len(player1) * 20
+        
         self.draw_text_with_fallback(draw, player1, 
                                    (left_x - player1_width // 2, player_y), 
                                    name_font, self.secondary_color)
         
         # プレイヤー2（右側）
-        player2_bbox = draw.textbbox((0, 0), player2, font=name_font)
-        player2_width = player2_bbox[2] - player2_bbox[0]
+        try:
+            player2_bbox = draw.textbbox((0, 0), player2, font=name_font)
+            player2_width = player2_bbox[2] - player2_bbox[0]
+        except:
+            player2_width = len(player2) * 20
+        
         self.draw_text_with_fallback(draw, player2, 
                                    (right_x - player2_width // 2, player_y), 
                                    name_font, self.secondary_color)
         
         # 「vs」をプレイヤー名の間に配置
         vs_text = "vs"
-        vs_bbox = draw.textbbox((0, 0), vs_text, font=vs_font)
-        vs_width = vs_bbox[2] - vs_bbox[0]
+        try:
+            vs_bbox = draw.textbbox((0, 0), vs_text, font=vs_font)
+            vs_width = vs_bbox[2] - vs_bbox[0]
+        except:
+            vs_width = len(vs_text) * 20
+        
         self.draw_text_with_fallback(draw, vs_text, 
                                    ((self.width - vs_width) // 2, player_y + 5), 
                                    vs_font, self.accent_color)
@@ -251,39 +281,59 @@ class TableTennisImageGenerator:
             
             # 左側のスコア
             score1_text = str(score1)
-            score1_bbox = draw.textbbox((0, 0), score1_text, font=detail_font)
-            score1_width = score1_bbox[2] - score1_bbox[0]
+            try:
+                score1_bbox = draw.textbbox((0, 0), score1_text, font=detail_font)
+                score1_width = score1_bbox[2] - score1_bbox[0]
+            except:
+                score1_width = len(score1_text) * 15
+            
             self.draw_text_with_fallback(draw, score1_text, 
                                        (score_left_x - score1_width // 2, y_pos), 
                                        detail_font, self.secondary_color)
             
             # 右側のスコア
             score2_text = str(score2)
-            score2_bbox = draw.textbbox((0, 0), score2_text, font=detail_font)
-            score2_width = score2_bbox[2] - score2_bbox[0]
+            try:
+                score2_bbox = draw.textbbox((0, 0), score2_text, font=detail_font)
+                score2_width = score2_bbox[2] - score2_bbox[0]
+            except:
+                score2_width = len(score2_text) * 15
+            
             self.draw_text_with_fallback(draw, score2_text, 
                                        (score_right_x - score2_width // 2, y_pos), 
                                        detail_font, self.secondary_color)
             
             # 中央のハイフン
             dash_text = "-"
-            dash_bbox = draw.textbbox((0, 0), dash_text, font=detail_font)
-            dash_width = dash_bbox[2] - dash_bbox[0]
+            try:
+                dash_bbox = draw.textbbox((0, 0), dash_text, font=detail_font)
+                dash_width = dash_bbox[2] - dash_bbox[0]
+            except:
+                dash_width = 10
+            
             self.draw_text_with_fallback(draw, dash_text, 
                                        ((self.width - dash_width) // 2, y_pos), 
                                        detail_font, self.secondary_color)
         
         # 最終スコア（セット数）
         final_score1 = str(player1_wins)
-        final_bbox1 = draw.textbbox((0, 0), final_score1, font=score_font)
-        final_width1 = final_bbox1[2] - final_bbox1[0]
+        try:
+            final_bbox1 = draw.textbbox((0, 0), final_score1, font=score_font)
+            final_width1 = final_bbox1[2] - final_bbox1[0]
+        except:
+            final_width1 = len(final_score1) * 50
+        
         self.draw_text_with_fallback(draw, final_score1, 
                                    (left_x - final_width1 // 2, final_y), 
                                    score_font, self.primary_color)
         
         final_score2 = str(player2_wins)
-        final_bbox2 = draw.textbbox((0, 0), final_score2, font=score_font)
-        final_width2 = final_bbox2[2] - final_bbox2[0]
+        try:
+            final_bbox2 = draw.textbbox((0, 0), final_score2, font=score_font)
+            final_width2 = final_bbox2[2] - final_bbox2[0]
+        except:
+            final_width2 = len(final_score2) * 50
+        
         self.draw_text_with_fallback(draw, final_score2, 
                                    (right_x - final_width2 // 2, final_y), 
                                    score_font, self.primary_color)
@@ -295,8 +345,12 @@ class TableTennisImageGenerator:
         
         # フッターテキスト
         footer_text = "Table Tennis Result Generator"
-        footer_bbox = draw.textbbox((0, 0), footer_text, font=footer_font)
-        footer_width = footer_bbox[2] - footer_bbox[0]
+        try:
+            footer_bbox = draw.textbbox((0, 0), footer_text, font=footer_font)
+            footer_width = footer_bbox[2] - footer_bbox[0]
+        except:
+            footer_width = len(footer_text) * 12
+        
         self.draw_text_with_fallback(draw, footer_text, 
                                    ((self.width - footer_width) // 2, self.height - 90), 
                                    footer_font, self.secondary_color)
@@ -344,11 +398,15 @@ def generate_image():
         img.save(img_io, 'PNG')
         img_io.seek(0)
         
+        # ファイル名を英数字のみに変更（日本語文字が問題を起こす可能性を回避）
+        safe_filename = f'table_tennis_result_{len(player1)}vs{len(player2)}.png'
+        
         return send_file(img_io, mimetype='image/png', 
                         as_attachment=True, 
-                        download_name=f'卓球結果_{player1}_vs_{player2}.png')
+                        download_name=safe_filename)
         
     except Exception as e:
+        print(f"Error in generate_image: {e}")
         return f"エラーが発生しました: {str(e)}", 500
 
 if __name__ == '__main__':
