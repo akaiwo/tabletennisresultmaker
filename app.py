@@ -38,7 +38,6 @@ class TableTennisImageGenerator:
     def setup_linux_fonts(self):
         """Linux環境（Render含む）用フォント設定"""
 
-
         # ✅ カスタムフォントを最優先で使用
         custom_path = os.path.join(os.path.dirname(__file__), "fonts/NotoSansCJKjp-Regular.otf")
         if os.path.exists(custom_path):
@@ -47,8 +46,9 @@ class TableTennisImageGenerator:
             self.japanese_fonts['italic'] = custom_path
             self.japanese_fonts['bold_italic'] = custom_path
             print(f"✓ Custom font loaded from: {custom_path}")
-            return  # 他のフォント読み込みをスキップ
-
+            # 英語フォントも同時に設定
+            self.setup_english_fonts_linux()
+            return
 
         # 日本語フォント候補（優先順）
         japanese_font_paths = [
@@ -73,7 +73,13 @@ class TableTennisImageGenerator:
             "/usr/share/fonts/truetype/ubuntu/Ubuntu-BoldItalic.ttf",
         ]
         
-        # 英数字フォント候補
+        self.load_font_variants(japanese_font_paths, self.japanese_fonts, "Japanese")
+        # 英語フォントを別途設定
+        self.setup_english_fonts_linux()
+    
+    def setup_english_fonts_linux(self):
+        """Linux環境用英語フォント設定（日本語フォントとは別に）"""
+        # 英数字専用フォント候補
         english_font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -89,7 +95,6 @@ class TableTennisImageGenerator:
             "/usr/share/fonts/truetype/ubuntu/Ubuntu-BoldItalic.ttf",
         ]
         
-        self.load_font_variants(japanese_font_paths, self.japanese_fonts, "Japanese")
         self.load_font_variants(english_font_paths, self.english_fonts, "English")
     
     def setup_windows_fonts(self):
@@ -283,7 +288,7 @@ class TableTennisImageGenerator:
         return False
     
     def draw_text_with_font_selection(self, draw, text, position, size, fill, bold=False, italic=False):
-        """テキストの内容に応じて適切なフォントを選択して描画"""
+        """テキストの内容に応じて適切なフォントを選択して描画（プレイヤー名専用）"""
         try:
             # 日本語文字が含まれているかチェック
             use_japanese_font = self.has_japanese_chars(text)
@@ -305,12 +310,32 @@ class TableTennisImageGenerator:
             except Exception as e2:
                 print(f"Final fallback also failed: {e2}")
     
+    def draw_english_text(self, draw, text, position, size, fill, bold=False, italic=False):
+        """英語テキスト専用描画メソッド（確実に英語フォントを使用）"""
+        try:
+            # 強制的に英語フォントを使用
+            font = self.get_font(size, bold=bold, italic=italic, japanese=False)
+            
+            if font:
+                draw.text(position, text, fill=fill, font=font)
+            else:
+                # フォント取得に失敗した場合
+                draw.text(position, text, fill=fill)
+                
+        except Exception as e:
+            print(f"English text drawing failed: {e}")
+            try:
+                # 最終フォールバック
+                draw.text(position, text, fill=fill)
+            except Exception as e2:
+                print(f"Final fallback also failed: {e2}")
+    
     def create_image(self, player1, player2, scores, match_type):
         # 画像とDrawオブジェクトを作成
         img = Image.new('RGB', (self.width, self.height), self.bg_color)
         draw = ImageDraw.Draw(img)
         
-        # タイトル（英語）- 斜体
+        # タイトル（英語）- 斜体 ★英語フォント強制使用
         title_text = "Game Result"
         try:
             # テキスト幅を計算（フォント取得できない場合のフォールバック）
@@ -323,9 +348,9 @@ class TableTennisImageGenerator:
         except:
             title_width = len(title_text) * 40
         
-        self.draw_text_with_font_selection(draw, title_text, 
-                                         ((self.width - title_width) // 2, 80), 
-                                         80, self.primary_color, bold=True, italic=True)
+        self.draw_english_text(draw, title_text, 
+                             ((self.width - title_width) // 2, 80), 
+                             80, self.primary_color, bold=True, italic=True)
         
         # 勝者を判定
         player1_wins = sum(1 for score in scores if score[0] > score[1])
@@ -338,7 +363,7 @@ class TableTennisImageGenerator:
         score_left_x = 420
         score_right_x = self.width - 420
         
-        # WIN表示 - 斜体
+        # WIN表示 - 斜体 ★英語フォント強制使用
         win_text = "WIN"
         try:
             win_font = self.get_font(60, bold=True, italic=True, japanese=False)
@@ -351,20 +376,20 @@ class TableTennisImageGenerator:
             win_width = len(win_text) * 30
         
         if winner == player1:
-            self.draw_text_with_font_selection(draw, win_text, 
-                                             (left_x - win_width // 2, 230), 
-                                             60, self.accent_color, bold=True, italic=True)
+            self.draw_english_text(draw, win_text, 
+                                 (left_x - win_width // 2, 230), 
+                                 60, self.accent_color, bold=True, italic=True)
         else:
-            self.draw_text_with_font_selection(draw, win_text, 
-                                             (right_x - win_width // 2, 230), 
-                                             60, self.accent_color, bold=True, italic=True)
+            self.draw_english_text(draw, win_text, 
+                                 (right_x - win_width // 2, 230), 
+                                 60, self.accent_color, bold=True, italic=True)
         
-        # プレイヤー名を配置 - タイトルと同じサイズ（80）
+        # プレイヤー名を配置 - タイトルと同じサイズ（80） ★プレイヤー名のみ自動判定フォント使用
         player_y = 300
         
         # プレイヤー1（左側）
         try:
-            name_font = self.get_font(60, bold=True, japanese=self.has_japanese_chars(player1))
+            name_font = self.get_font(80, bold=True, japanese=self.has_japanese_chars(player1))
             if name_font:
                 player1_bbox = draw.textbbox((0, 0), player1, font=name_font)
                 player1_width = player1_bbox[2] - player1_bbox[0]
@@ -379,7 +404,7 @@ class TableTennisImageGenerator:
         
         # プレイヤー2（右側）
         try:
-            name_font = self.get_font(60, bold=True, japanese=self.has_japanese_chars(player2))
+            name_font = self.get_font(80, bold=True, japanese=self.has_japanese_chars(player2))
             if name_font:
                 player2_bbox = draw.textbbox((0, 0), player2, font=name_font)
                 player2_width = player2_bbox[2] - player2_bbox[0]
@@ -392,7 +417,7 @@ class TableTennisImageGenerator:
                                          (right_x - player2_width // 2, player_y), 
                                          80, self.secondary_color, bold=True)
         
-        # 「vs」をプレイヤー名の間に配置 - 斜体
+        # 「vs」をプレイヤー名の間に配置 - 斜体 ★英語フォント強制使用
         vs_text = "vs"
         try:
             vs_font = self.get_font(50, italic=True, japanese=False)
@@ -404,9 +429,9 @@ class TableTennisImageGenerator:
         except:
             vs_width = len(vs_text) * 25
         
-        self.draw_text_with_font_selection(draw, vs_text, 
-                                         ((self.width - vs_width) // 2, player_y + 5), 
-                                         50, self.accent_color, italic=True)
+        self.draw_english_text(draw, vs_text, 
+                             ((self.width - vs_width) // 2, player_y + 5), 
+                             50, self.accent_color, italic=True)
         
         # 各セットのスコアの配置計算
         num_sets = len(scores)
@@ -424,7 +449,7 @@ class TableTennisImageGenerator:
         
         score_start_y = final_y + 50 - (center_set_index * line_height)
         
-        # 各セットのスコア表示 - 斜体
+        # 各セットのスコア表示 - 斜体 ★英語フォント強制使用
         for i, (score1, score2) in enumerate(scores):
             y_pos = score_start_y + i * line_height
             
@@ -440,9 +465,9 @@ class TableTennisImageGenerator:
             except:
                 score1_width = len(score1_text) * 20
             
-            self.draw_text_with_font_selection(draw, score1_text, 
-                                             (score_left_x - score1_width // 2, y_pos), 
-                                             35, self.secondary_color, italic=True)
+            self.draw_english_text(draw, score1_text, 
+                                 (score_left_x - score1_width // 2, y_pos), 
+                                 35, self.secondary_color, italic=True)
             
             # 右側のスコア
             score2_text = str(score2)
@@ -456,9 +481,9 @@ class TableTennisImageGenerator:
             except:
                 score2_width = len(score2_text) * 20
             
-            self.draw_text_with_font_selection(draw, score2_text, 
-                                             (score_right_x - score2_width // 2, y_pos), 
-                                             35, self.secondary_color, italic=True)
+            self.draw_english_text(draw, score2_text, 
+                                 (score_right_x - score2_width // 2, y_pos), 
+                                 35, self.secondary_color, italic=True)
             
             # 中央のハイフン
             dash_text = "-"
@@ -472,11 +497,11 @@ class TableTennisImageGenerator:
             except:
                 dash_width = 15
             
-            self.draw_text_with_font_selection(draw, dash_text, 
-                                             ((self.width - dash_width) // 2, y_pos), 
-                                             35, self.secondary_color, italic=True)
+            self.draw_english_text(draw, dash_text, 
+                                 ((self.width - dash_width) // 2, y_pos), 
+                                 35, self.secondary_color, italic=True)
         
-        # 最終スコア（セット数）- 斜体
+        # 最終スコア（セット数）- 斜体 ★英語フォント強制使用
         final_score1 = str(player1_wins)
         try:
             score_font = self.get_font(120, bold=True, italic=True, japanese=False)
@@ -488,9 +513,9 @@ class TableTennisImageGenerator:
         except:
             final_width1 = len(final_score1) * 70
         
-        self.draw_text_with_font_selection(draw, final_score1, 
-                                         (left_x - final_width1 // 2, final_y), 
-                                         120, self.primary_color, bold=True, italic=True)
+        self.draw_english_text(draw, final_score1, 
+                             (left_x - final_width1 // 2, final_y), 
+                             120, self.primary_color, bold=True, italic=True)
         
         final_score2 = str(player2_wins)
         try:
@@ -503,16 +528,16 @@ class TableTennisImageGenerator:
         except:
             final_width2 = len(final_score2) * 70
         
-        self.draw_text_with_font_selection(draw, final_score2, 
-                                         (right_x - final_width2 // 2, final_y), 
-                                         120, self.primary_color, bold=True, italic=True)
+        self.draw_english_text(draw, final_score2, 
+                             (right_x - final_width2 // 2, final_y), 
+                             120, self.primary_color, bold=True, italic=True)
         
         # 装飾的な要素
         draw.rectangle([100, 180, self.width - 100, 185], fill=self.primary_color)
         draw.rectangle([100, self.height - 150, self.width - 100, self.height - 145], 
                       fill=self.primary_color)
         
-        # フッターテキスト
+        # フッターテキスト ★英語フォント強制使用
         footer_text = "Table Tennis Result Generator"
         try:
             footer_font = self.get_font(30, japanese=False)
@@ -524,9 +549,9 @@ class TableTennisImageGenerator:
         except:
             footer_width = len(footer_text) * 15
         
-        self.draw_text_with_font_selection(draw, footer_text, 
-                                         ((self.width - footer_width) // 2, self.height - 90), 
-                                         30, self.secondary_color)
+        self.draw_english_text(draw, footer_text, 
+                             ((self.width - footer_width) // 2, self.height - 90), 
+                             30, self.secondary_color)
         
         return img
 
