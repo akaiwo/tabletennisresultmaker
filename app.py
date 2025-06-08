@@ -37,6 +37,19 @@ class TableTennisImageGenerator:
     
     def setup_linux_fonts(self):
         """Linux環境（Render含む）用フォント設定"""
+
+
+        # ✅ カスタムフォントを最優先で使用
+        custom_path = os.path.join(os.path.dirname(__file__), "fonts/NotoSansCJKjp-Regular.otf")
+        if os.path.exists(custom_path):
+            self.japanese_fonts['regular'] = custom_path
+            self.japanese_fonts['bold'] = custom_path
+            self.japanese_fonts['italic'] = custom_path
+            self.japanese_fonts['bold_italic'] = custom_path
+            print(f"✓ Custom font loaded from: {custom_path}")
+            return  # 他のフォント読み込みをスキップ
+
+
         # 日本語フォント候補（優先順）
         japanese_font_paths = [
             # Noto Fonts（最も信頼性が高い）
