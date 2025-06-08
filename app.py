@@ -526,7 +526,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, footer_text, 
                                          ((self.width - footer_width) // 2, self.height - 90), 
-                                         30, self.secondary_color, japanese=False)
+                                         30, self.secondary_color, bold=True, italic=True, japanese=False)
         
         return img
 
