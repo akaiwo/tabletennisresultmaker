@@ -40,6 +40,8 @@ class TableTennisImageGenerator:
         # 日本語フォント候補（優先順）
         japanese_font_paths = [
             # Noto Fonts（最も信頼性が高い）
+            "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             # DejaVu系（英数字でも使用可能）
