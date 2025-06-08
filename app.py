@@ -325,7 +325,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, title_text, 
                                          ((self.width - title_width) // 2, 80), 
-                                         80, self.primary_color, bold=True, italic=True, japanese=False)
+                                         80, self.primary_color, bold=True, italic=True)
         
         # 勝者を判定
         player1_wins = sum(1 for score in scores if score[0] > score[1])
@@ -353,11 +353,11 @@ class TableTennisImageGenerator:
         if winner == player1:
             self.draw_text_with_font_selection(draw, win_text, 
                                              (left_x - win_width // 2, 230), 
-                                             60, self.accent_color, bold=True, italic=True, japanese=False)
+                                             60, self.accent_color, bold=True, italic=True)
         else:
             self.draw_text_with_font_selection(draw, win_text, 
                                              (right_x - win_width // 2, 230), 
-                                             60, self.accent_color, bold=True, italic=True, japanese=False)
+                                             60, self.accent_color, bold=True, italic=True)
         
         # プレイヤー名を配置 - タイトルと同じサイズ（80）
         player_y = 300
@@ -375,7 +375,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, player1, 
                                          (left_x - player1_width // 2, player_y), 
-                                         80, self.secondary_color, bold=True, japanese=False)
+                                         80, self.secondary_color, bold=True)
         
         # プレイヤー2（右側）
         try:
@@ -390,7 +390,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, player2, 
                                          (right_x - player2_width // 2, player_y), 
-                                         80, self.secondary_color, bold=True, japanese=False)
+                                         80, self.secondary_color, bold=True)
         
         # 「vs」をプレイヤー名の間に配置 - 斜体
         vs_text = "vs"
@@ -406,7 +406,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, vs_text, 
                                          ((self.width - vs_width) // 2, player_y + 5), 
-                                         50, self.accent_color, italic=True, japanese=False)
+                                         50, self.accent_color, italic=True)
         
         # 各セットのスコアの配置計算
         num_sets = len(scores)
@@ -442,7 +442,7 @@ class TableTennisImageGenerator:
             
             self.draw_text_with_font_selection(draw, score1_text, 
                                              (score_left_x - score1_width // 2, y_pos), 
-                                             35, self.secondary_color, italic=True, japanese=False)
+                                             35, self.secondary_color, italic=True)
             
             # 右側のスコア
             score2_text = str(score2)
@@ -458,7 +458,7 @@ class TableTennisImageGenerator:
             
             self.draw_text_with_font_selection(draw, score2_text, 
                                              (score_right_x - score2_width // 2, y_pos), 
-                                             35, self.secondary_color, italic=True, japanese=False)
+                                             35, self.secondary_color, italic=True)
             
             # 中央のハイフン
             dash_text = "-"
@@ -474,7 +474,7 @@ class TableTennisImageGenerator:
             
             self.draw_text_with_font_selection(draw, dash_text, 
                                              ((self.width - dash_width) // 2, y_pos), 
-                                             35, self.secondary_color, italic=True, japanese=False)
+                                             35, self.secondary_color, italic=True)
         
         # 最終スコア（セット数）- 斜体
         final_score1 = str(player1_wins)
@@ -490,7 +490,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, final_score1, 
                                          (left_x - final_width1 // 2, final_y), 
-                                         120, self.primary_color, bold=True, italic=True, japanese=False)
+                                         120, self.primary_color, bold=True, italic=True)
         
         final_score2 = str(player2_wins)
         try:
@@ -505,7 +505,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, final_score2, 
                                          (right_x - final_width2 // 2, final_y), 
-                                         120, self.primary_color, bold=True, italic=True, japanese=False)
+                                         120, self.primary_color, bold=True, italic=True)
         
         # 装飾的な要素
         draw.rectangle([100, 180, self.width - 100, 185], fill=self.primary_color)
@@ -526,7 +526,7 @@ class TableTennisImageGenerator:
         
         self.draw_text_with_font_selection(draw, footer_text, 
                                          ((self.width - footer_width) // 2, self.height - 90), 
-                                         30, self.secondary_color, bold=True, italic=True, japanese=False)
+                                         30, self.secondary_color)
         
         return img
 
