@@ -430,8 +430,8 @@ class TableTennisImageGenerator:
             vs_width = len(vs_text) * 25
         
         self.draw_english_text(draw, vs_text, 
-                             ((self.width - vs_width) // 2, player_y + 5), 
-                             50, self.accent_color, italic=True)
+                             ((self.width - vs_width) // 2, player_y + 13), 
+                             50, self.accent_color, bold=True, italic=True)
         
         # 各セットのスコアの配置計算
         num_sets = len(scores)
